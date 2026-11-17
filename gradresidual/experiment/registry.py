@@ -5,6 +5,11 @@ lr_budget           every method at its own best: 7 methods (38 configurations p
                     x f = 1, 2 x both orientations; 30 seeds, 20000 epochs (5000 / 10000 / 20000 read from the same curves)
 shortcut_scale      Standard Residual with the raw shortcut (s = 1), the shortcut scaled by a constant s* and the per-sample normalised shortcut
 shuffled_direction  Grad Residual (c = 1) with the true g_hat and with g_hat shuffled across samples, against Regular
+norm_shortcut       plan 1A: the lr_budget winners (drop rule, 20000 epochs) of the four shortcut methods, retrained with the normalised shortcut on
+                    the same seeds, so every network is paired with its raw-shortcut twin in lr_budget
+indep_grid          plan 1B: s and c both trainable on the normalised shortcut and g_hat (16 start pairs x 6 learning rates, widths 8 ... 64)
+
+Units of the plan-1 experiments carry save_weights: all weights are written at these epochs (one .pt per unit).
 """
 import math
 
@@ -71,4 +76,63 @@ def shuffled_direction(widths=WIDTHS, lr=0.0078125, seed0=2000, S=100, epochs=50
     return out
 
 
-EXPERIMENTS = {"lr_budget": lr_budget, "shortcut_scale": shortcut_scale, "shuffled_direction": shuffled_direction}
+SNAPSHOTS = [5000, 10000, 20000]
+
+# lr_budget winners at 20000 epochs under the drop rule (crashed seeds dropped), shortcut families only:
+# (variant, width, method, init, init2, lr, the f values it was selected at)
+R8, R16, R32 = 1 / math.sqrt(8), 0.25, 1 / math.sqrt(32)
+NORM_SHORTCUT_CONFIGS = [
+    ("F", 8, "standard_fixed", R8, None, 0.03125, (1.0,)), ("F", 8, "standard_fixed", 0.01, None, 0.03125, (2.0,)),
+    ("F", 8, "standard_train", R8, None, 0.03125, (1.0, 2.0)),
+    ("F", 8, "addition", 0.1, R8, 0.03125, (1.0,)), ("F", 8, "addition", 0.1, 0.1, 0.03125, (2.0,)),
+    ("F", 8, "convex", 1.0, None, 0.03125, (1.0, 2.0)),
+    ("F", 16, "standard_fixed", 0.1, None, 0.03125, (1.0, 2.0)),
+    ("F", 16, "standard_train", 0.1, None, 0.03125, (1.0,)), ("F", 16, "standard_train", R16, None, 0.03125, (2.0,)),
+    ("F", 16, "addition", 1.0, 0.1, 0.03125, (1.0,)), ("F", 16, "addition", 0.01, R16, 0.03125, (2.0,)),
+    ("F", 16, "convex", 3.0, None, 0.03125, (1.0, 2.0)),
+    ("F", 32, "standard_fixed", 0.1, None, 0.03125, (1.0, 2.0)),
+    ("F", 32, "standard_train", 0.01, None, 0.03125, (1.0,)), ("F", 32, "standard_train", R32, None, 0.03125, (2.0,)),
+    ("F", 32, "addition", 1.0, 0.1, 0.03125, (1.0, 2.0)),
+    ("F", 32, "convex", 3.0, None, 0.03125, (1.0, 2.0)),
+    ("D", 8, "standard_fixed", R8, None, 0.03125, (1.0,)), ("D", 8, "standard_fixed", 1.0, None, 0.03125, (2.0,)),
+    ("D", 8, "standard_train", R8, None, 0.03125, (1.0,)), ("D", 8, "standard_train", 0.01, None, 0.03125, (2.0,)),
+    ("D", 8, "addition", None, 1.0, 0.03125, (1.0,)), ("D", 8, "addition", 1.0, R8, 0.03125, (2.0,)),
+    ("D", 8, "convex", 3.0, None, 0.03125, (1.0,)), ("D", 8, "convex", 1.0, None, 0.03125, (2.0,)),
+    ("D", 16, "standard_fixed", 0.1, None, 0.03125, (1.0, 2.0)),
+    ("D", 16, "standard_train", R16, None, 0.03125, (1.0,)), ("D", 16, "standard_train", 0.1, None, 0.03125, (2.0,)),
+    ("D", 16, "addition", 0.01, R16, 0.03125, (1.0,)), ("D", 16, "addition", 0.1, R16, 0.03125, (2.0,)),
+    ("D", 16, "convex", 1.0, None, 0.03125, (1.0, 2.0)),
+    ("D", 32, "standard_fixed", R32, None, 0.03125, (1.0, 2.0)),
+    ("D", 32, "standard_train", 0.01, None, 0.03125, (1.0,)), ("D", 32, "standard_train", R32, None, 0.03125, (2.0,)),
+    ("D", 32, "addition", 1.0, 0.1, 0.03125, (1.0,)), ("D", 32, "addition", R32, R32, 0.03125, (2.0,)),
+    ("D", 32, "convex", 3.0, None, 0.03125, (1.0,)), ("D", 32, "convex", 1.0, None, 0.03125, (2.0,)),
+]
+
+
+def _snap(units):
+    for u in units:
+        u["save_weights"] = list(SNAPSHOTS)
+    return units
+
+
+def norm_shortcut(seed0=5000, S=30, epochs=20000):
+    out = []
+    for (v, w, m, i, i2, lr, fs) in NORM_SHORTCUT_CONFIGS:
+        for f in fs:
+            out.append(make_unit("norm_shortcut", v, w, f, m, i, i2, shortcut_norm="unit", lrs=(lr,), S=S, seed0=seed0, epochs=epochs))
+    return _snap(out)
+
+
+def indep_grid(widths=(8, 16, 32, 64), fs=(1.0, 2.0), seed0=5000, S=30, epochs=20000):
+    out = []
+    for w in widths:
+        for v in ("F", "D"):
+            for f in fs:
+                for c0 in coefficient_grid(w):
+                    for s0 in coefficient_grid(w):
+                        out.append(make_unit("indep_grid", v, w, f, "indep", c0, s0, shortcut_norm="unit", lrs=LRS, S=S, seed0=seed0, epochs=epochs))
+    return _snap(out)
+
+
+EXPERIMENTS = {"lr_budget": lr_budget, "shortcut_scale": shortcut_scale, "shuffled_direction": shuffled_direction,
+               "norm_shortcut": norm_shortcut, "indep_grid": indep_grid}

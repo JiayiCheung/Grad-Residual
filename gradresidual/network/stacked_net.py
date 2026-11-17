@@ -14,6 +14,7 @@ Methods (the coefficients are per network, so one process can hold several confi
     grad_only        c trainable (start c0)      grad_fixed       c fixed (optionally with g_hat shuffled across samples)
     addition         s fixed, c trainable or fixed at 1
     convex           s = 1 - sigmoid(alpha), c = sigmoid(alpha), alpha trainable
+    indep            s and c both trainable (starts s0 = init2, c0 = init), no sigmoid; used with the normalised shortcut
     grad_mag         h3 = [ReLU(z); ||g||]  (the length of g as one extra feature)
 
 All networks of a process share one draw of the initial weights per seed (repeated over the blocks), so every block is paired.
@@ -26,8 +27,8 @@ import torch
 EPS = 1e-7
 Q_FLOOR = 1e-2
 VARIANTS = {"F": 2, "D": 1}  # variant -> span: the shortcut source is hidden layer 3 - span
-METHODS = ("regular", "standard_fixed", "standard_train", "grad_only", "grad_fixed", "addition", "convex", "grad_mag")
-GRAD_METHODS = ("grad_only", "grad_fixed", "addition", "convex", "grad_mag")
+METHODS = ("regular", "standard_fixed", "standard_train", "grad_only", "grad_fixed", "addition", "convex", "indep", "grad_mag")
+GRAD_METHODS = ("grad_only", "grad_fixed", "addition", "convex", "indep", "grad_mag")
 
 
 def digest(*ts):
@@ -89,14 +90,17 @@ class StackedNet:
             setattr(self, name, rep(weights[name]))
         per = lambda vals: torch.tensor([v for v in vals for _ in range(blocks_per_config)], device=device, dtype=torch.float32).repeat_interleave(S).view(-1, 1, 1)
         m = self.method
-        self.alpha, self.mask = None, None
+        self.alpha, self.mask, self.beta = None, None, None
+        if m == "indep":
+            # beta = s on the shortcut, alpha = c on the gradient term; both trained with the network's learning rate
+            self.beta = per([c["init2"] for c in configs]).clone().requires_grad_(True)
         if m == "standard_fixed":
             self.s_fix = per([c["init"] for c in configs])
         elif m == "addition":
             self.s_fix = per([c["init2"] if c["init2"] is not None else 1.0 for c in configs])
         elif m == "grad_fixed":
             self.s_fix = per([0.0 for _ in configs])
-        if m in ("standard_train", "grad_only", "convex"):
+        if m in ("standard_train", "grad_only", "convex", "indep"):
             self.alpha = per([c["init"] for c in configs]).clone().requires_grad_(True)
         elif m in ("addition", "grad_fixed"):
             # c per network: addition trains c where a start value is given (else c = 1 fixed); grad_fixed keeps c fixed
@@ -112,6 +116,8 @@ class StackedNet:
         ps = [self.W1, self.b1, self.W2, self.b2, self.W3, self.b3, self.Wo, self.bo]
         if self.trainable_alpha:
             ps.append(self.alpha)
+        if self.beta is not None:
+            ps.append(self.beta)
         return ps
 
     def _source(self, xb):
@@ -148,6 +154,8 @@ class StackedNet:
                 s = self.alpha * gn
             elif m in ("addition", "grad_fixed"):
                 s = self.s_fix * self._source(xb) + self.alpha * gn
+            elif m == "indep":
+                s = self.beta * self._source(xb) + self.alpha * gn
             else:
                 a = torch.sigmoid(self.alpha)
                 s = (1 - a) * self._source(xb) + a * gn

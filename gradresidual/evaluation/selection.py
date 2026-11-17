@@ -10,7 +10,7 @@ import json
 import numpy as np
 
 FAMILY = {"regular": "regular", "standard_fixed": "standard_fixed", "standard_train": "standard_train", "grad_only": "grad_res", "grad_fixed": "grad_res",
-          "addition": "addition", "convex": "convex", "grad_mag": "grad_mag"}
+          "addition": "addition", "convex": "convex", "indep": "indep", "grad_mag": "grad_mag"}
 
 
 def families(cfg):

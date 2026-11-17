@@ -16,7 +16,7 @@ import torch
 from ..data.sine import N_TRAIN, hard_mask, make_data
 from ..experiment.units import GROUP_FIELDS, blocks, group_id, group_key, is_trainable, unit_key
 from ..network.stacked_net import VARIANTS, StackedNet, digest, draw_weights
-from .storage import checkpoint_path, result_path, write_atomic
+from .storage import checkpoint_path, result_path, weights_path, write_atomic
 
 BATCH_SIZE = 512
 # three independent random streams per seed set: data, initial weights, batch order
@@ -42,12 +42,31 @@ def stack_data(u, device):
     return [cat(i) for i in range(6)], fp
 
 
-def train_group(units, device, ckpt_every=2000, use_graph=None, log=None):
-    """trains the units of one group and writes one npz result per unit; returns [(unit, arrays, meta)]."""
+WEIGHT_NAMES = ("W1", "b1", "W2", "b2", "W3", "b3", "Wo", "bo", "s_fix", "alpha", "beta", "mask")
+
+
+def save_weights(net, units, ep, fp, per_unit, S):
+    """one .pt per unit: {epoch: {name: tensor (blocks * S, ...)}} plus the layout needed to read it; rewritten atomically at every snapshot."""
+    for k, u in enumerate(units):
+        sl = slice(k * per_unit * S, (k + 1) * per_unit * S)
+        p = weights_path(u)
+        rec = torch.load(p, weights_only=False) if os.path.exists(p) else dict(
+            unit=u, unit_key=unit_key(u), blocks=blocks(u), seeds=S, seed0=u["seed0"], fingerprint=dict(fp), code=CODE_HASH,
+            layout="rows = blocks x seeds (block order: learning rate outer, orientation inner; seed index inner)", snapshots={})
+        rec["snapshots"][ep] = {n: getattr(net, n)[sl].detach().cpu().clone() for n in WEIGHT_NAMES if getattr(net, n, None) is not None}
+        buf = io.BytesIO()
+        torch.save(rec, buf)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        write_atomic(p, buf.getvalue())
+
+
+def train_group(units, device, ckpt_every=2000, use_graph=None, log=None, save_at=None):
+    """trains the units of one group and writes one npz result per unit (and the weights at the epochs save_at); returns [(unit, arrays, meta)]."""
     u0 = units[0]
     for u in units:
         assert all(u[k] == u0[k] for k in GROUP_FIELDS), "units of a group must agree on %s" % (GROUP_FIELDS,)
     S, epochs, ev = u0["S"], u0["epochs"], u0["eval_every"]
+    save_at = set(u0.get("save_weights", ()) if save_at is None else save_at)
     nl, no = len(u0["lrs"]), len(u0["orients"])
     cuda = str(device).startswith("cuda")
     # the shuffling generator is not registered with the graph, so shuffled groups run eagerly
@@ -70,7 +89,7 @@ def train_group(units, device, ckpt_every=2000, use_graph=None, log=None):
     lr_vec = torch.tensor([b["lr"] for _ in units for b in blocks(u0)], device=device, dtype=torch.float32).repeat_interleave(S).view(-1, 1, 1)
     hm = torch.stack([hard_mask(Xt, b["orient"]) for _ in units for b in blocks(u0)]).repeat_interleave(S, 0).float()
 
-    curves = {k: [] for k in ("val", "test", "test_hard", "test_easy", "scal")}
+    curves = {k: [] for k in ("val", "test", "test_hard", "test_easy", "scal", "scal_s")}
     fp = dict(data=fp_data, init=fp_init)
     start, elapsed = 1, 0.0
     cp = checkpoint_path(u0["experiment"], group_id(units))
@@ -139,6 +158,10 @@ def train_group(units, device, ckpt_every=2000, use_graph=None, log=None):
             curves["test_hard"].append(((e * hm).sum(1) / hm.sum(1)).cpu().numpy().astype(np.float32))
             curves["test_easy"].append(((e * (1 - hm)).sum(1) / (1 - hm).sum(1)).cpu().numpy().astype(np.float32))
             curves["scal"].append(net.alpha.detach().view(-1).cpu().numpy().astype(np.float32) if net.alpha is not None else np.zeros(0, np.float32))
+            curves.setdefault("scal_s", []).append(net.beta.detach().view(-1).cpu().numpy().astype(np.float32) if net.beta is not None else np.zeros(0, np.float32))
+        if ep in save_at:
+            sync()
+            save_weights(net, units, ep, fp, nl * no, S)
         if ep % ckpt_every == 0 and ep < epochs:
             sync()
             os.makedirs(os.path.dirname(cp), exist_ok=True)
@@ -159,6 +182,8 @@ def train_group(units, device, ckpt_every=2000, use_graph=None, log=None):
         arrs = {key: shape(curves[key]) for key in ("val", "test", "test_hard", "test_easy")}
         if is_trainable(u):
             arrs["scal"] = shape(curves["scal"])
+        if net.beta is not None:
+            arrs["scal_s"] = shape(curves["scal_s"])
         meta = dict(key=unit_key(u), unit=u, blocks=blocks(u), fingerprint=fp, code=CODE_HASH, group=group_id(units), group_size=len(units),
                     cuda_graph=bool(use_graph), torch=torch.__version__, device=str(device), seconds=elapsed / len(units), resumed_from=start - 1)
         buf = io.BytesIO()

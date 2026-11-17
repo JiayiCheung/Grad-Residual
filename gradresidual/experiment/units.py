@@ -38,7 +38,7 @@ def blocks(u):
 
 def is_trainable(u):
     m = u["method"]
-    return m in ("standard_train", "grad_only", "convex") or (m == "addition" and u["init"] is not None)
+    return m in ("standard_train", "grad_only", "convex", "indep") or (m == "addition" and u["init"] is not None)
 
 
 def group_units(units, max_nets=720, max_cfg=4):

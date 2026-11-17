@@ -44,6 +44,22 @@ Grad Residual with $c = 1$ fixed, with the true $\hat{g}$ and with $\hat{g}$ shu
 Regular; variants F, D × widths 8, 16, 32; learning rate 0.0078125; both orientations; 100 seeds ($\mathrm{seed}_0 = 2000$), 5000 epochs.
 `analysis_drop.json` gives shuffled − true, shuffled − Regular and true − Regular, paired by seed.
 
+## `norm_shortcut` — the shortcut at the length of $\hat{g}$
+
+The `lr_budget` winners (drop rule, 20000 epochs) of Standard Residual (fixed and trainable), Addition and Convex, retrained with the normalised
+shortcut $q = x_b / \max(\lVert x_b \rVert, 0.01)$ at their selected learning rate, coefficients and $f$; both orientations; the same 30 seeds
+($\mathrm{seed}_0 = 5000$) as `lr_budget`, so every network is paired with its raw-shortcut twin, and with Regular and Grad Residual, seed by seed.
+
+## `indep_grid` — two independent trainable coefficients
+
+$h_3 = \mathrm{ReLU}(z + s\,\hat{x}_b + c\,\hat{g})$ with $s$ and $c$ both trainable and no sigmoid: starts $c_0, s_0 \in \{0.01, 0.1, 1/\sqrt{d}, 1\}$
+× the six learning rates × variants F, D × widths 8, 16, 32, 64 × $f = 1, 2$ × both orientations; 30 seeds ($\mathrm{seed}_0 = 5000$), 20000 epochs.
+The npz holds the trajectories of both coefficients (`scal` = $c$, `scal_s` = $s$).
+
+Both experiments also write all weights (including the coefficients) at epochs 5000, 10000 and 20000: `weights/<unit>.pt` holds, per epoch, every
+parameter stacked over the unit's networks (rows = blocks × seeds, blocks ordered learning rate then orientation), with the unit, its blocks, the
+seeds and the data and initialisation fingerprints.
+
 ## Sharing a GPU
 
 `scripts/gpu_watchdog.sh` stops the most recently started worker whenever the used GPU memory exceeds `LIMIT_MIB`; the stopped group resumes from its

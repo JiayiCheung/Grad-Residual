@@ -31,6 +31,10 @@ def result_path(u):
     return os.path.join(experiment_dir(u["experiment"]), "raw", unit_id(u) + ".npz")
 
 
+def weights_path(u):
+    return os.path.join(experiment_dir(u["experiment"]), "weights", unit_id(u) + ".pt")
+
+
 def checkpoint_path(experiment, gid):
     return os.path.join(experiment_dir(experiment), "checkpoints", gid + ".pt")
 
