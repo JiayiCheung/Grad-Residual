@@ -32,6 +32,7 @@ h_3 &= \mathrm{ReLU}\left(z + s\,q + c\,\hat{g}\right) \\
 | `grad_fixed` | $0$ | fixed | Grad Residual with fixed $c$; optionally $\hat{g}$ shuffled across samples |
 | `addition` | fixed | trainable from $c_0$, or fixed at $1$ | both terms |
 | `convex` | $1 - \sigma(\alpha)$ | $\sigma(\alpha)$ | $\alpha$ trainable |
+| `indep` | trainable, start $s_0$ | trainable, start $c_0$ | both terms normalised; no sigmoid |
 | `grad_mag` | — | — | $h_3 = \left[\mathrm{ReLU}(z);\ \lVert g \rVert_2\right]$: only the length of $g$, as one extra feature |
 
 Trainable coefficients use the same learning rate as the weights.
