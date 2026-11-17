@@ -16,9 +16,6 @@ its paired 95% interval excludes 0.
 | | |
 |---|---|
 | methods | all of [methods.md](methods.md); 38 configurations per variant: $s,\ s_0,\ c_0 \in \lbrace 0.01,\ 0.1,\ 1/\sqrt{d},\ 1 \rbrace$; fixed $c \in \lbrace 0.5,\ 1,\ 2 \rbrace$; Addition $4 \times 4$ plus $(s, c) = (1, 1)$; $\alpha_0 \in \lbrace -3,\ -1,\ 1,\ 3 \rbrace$ |
-brace$, fixed $c \in \lbrace 0.5,\ 1,\ 2 
-brace$, Addition $4 	imes 4$ plus $(s, c) = (1, 1)$, $lpha_0 \in \lbrace -3,\ -1,\ 1,\ 3 
-brace$) |
 | learning rates | 0.5, 0.125, 0.03125, 0.0078125, 0.001953125, 0.00048828125 |
 | cells | variants F, D × widths 8, 16, 32 × $f = 1, 2$ × orientations right, left |
 | seeds, length | 30 seeds ($\mathrm{seed}_0 = 5000$), 20 000 epochs; budgets 5000 / 10 000 / 20 000 are read from the same curves |
