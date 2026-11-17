@@ -1,8 +1,10 @@
 """Worker loop: repeatedly claim the next group of unfinished units, train it, write the results. Several workers can run on one GPU."""
+import gc
 import os
 import time
 
 import numpy as np
+import torch
 
 from ..experiment.units import group_id, group_units, unit_id
 from ..paths import experiment_dir
@@ -36,6 +38,11 @@ def run_worker(units, device, max_nets=720, max_cfg=4, log=print):
                 fails.tolist(), meta["seconds"], len(outs)))
             storage.release(u)
             n_done += 1
+        # hand the cached blocks (and the freed cuda graph pool) back, so a long-running worker does not grow on a shared gpu
+        del outs
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 def file_logger(experiment):
