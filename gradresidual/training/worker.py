@@ -22,7 +22,11 @@ def progress_writer(units):
         rec = dict(pid=os.getpid(), group=group_id(units), units=[unit_id(u) for u in units], variant=units[0]["variant"], width=units[0]["width"],
                    f=units[0]["f"], configs=[[u["init"], u["init2"]] for u in units], epoch=ep, epochs=epochs, seconds=seconds, val=val, test=test,
                    time=time.time())
-        storage.write_atomic(path, json.dumps(rec).encode())
+        try:
+            storage.write_atomic(path, json.dumps(rec).encode())
+        except OSError:
+            # best effort: on windows a reader holding the file blocks the replace; progress must never stop training
+            pass
     return write
 
 
