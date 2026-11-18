@@ -60,8 +60,9 @@ def save_weights(net, units, ep, fp, per_unit, S):
         write_atomic(p, buf.getvalue())
 
 
-def train_group(units, device, ckpt_every=2000, use_graph=None, log=None, save_at=None):
-    """trains the units of one group and writes one npz result per unit (and the weights at the epochs save_at); returns [(unit, arrays, meta)]."""
+def train_group(units, device, ckpt_every=2000, use_graph=None, log=None, save_at=None, progress=None):
+    """trains the units of one group and writes one npz result per unit (and the weights at the epochs save_at); returns [(unit, arrays, meta)].
+    progress(epoch, epochs, seconds, val, test), if given, is called at every evaluation with the mean errors over the finite networks."""
     u0 = units[0]
     for u in units:
         assert all(u[k] == u0[k] for k in GROUP_FIELDS), "units of a group must agree on %s" % (GROUP_FIELDS,)
@@ -159,6 +160,9 @@ def train_group(units, device, ckpt_every=2000, use_graph=None, log=None, save_a
             curves["test_easy"].append(((e * (1 - hm)).sum(1) / (1 - hm).sum(1)).cpu().numpy().astype(np.float32))
             curves["scal"].append(net.alpha.detach().view(-1).cpu().numpy().astype(np.float32) if net.alpha is not None else np.zeros(0, np.float32))
             curves.setdefault("scal_s", []).append(net.beta.detach().view(-1).cpu().numpy().astype(np.float32) if net.beta is not None else np.zeros(0, np.float32))
+            if progress is not None:
+                v, t = curves["val"][-1], curves["test"][-1]
+                progress(ep, epochs, elapsed + time.time() - t0, float(np.nanmean(np.where(np.isfinite(v), v, np.nan))), float(np.nanmean(np.where(np.isfinite(t), t, np.nan))))
         if ep in save_at:
             sync()
             save_weights(net, units, ep, fp, nl * no, S)

@@ -76,3 +76,15 @@ def test_resume_keeps_weight_snapshots_identical(results_root, monkeypatch):
             assert np.array_equal(a[1][key], b[1][key])
         rec = torch.load(weights_path(b[0]), weights_only=False)
         assert sorted(rec["snapshots"]) == [2, 6] and torch.equal(rec["snapshots"][6]["W3"], ref[b[0]["init"]])
+
+
+def test_progress_is_reported_at_every_evaluation_and_does_not_change_results(results_root):
+    from gradresidual.training.trainer import train_group
+    calls = []
+    a = train_group(_indep_units(), "cpu", use_graph=False, progress=lambda *x: calls.append(x))
+    assert [c[0] for c in calls] == [2, 4, 6] and all(c[1] == 6 for c in calls)
+    import shutil
+    shutil.rmtree(results_root / "t")
+    b = train_group(_indep_units(), "cpu", use_graph=False)
+    for x, y in zip(a, b):
+        assert np.array_equal(x[1]["test"], y[1]["test"])

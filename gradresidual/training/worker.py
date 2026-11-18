@@ -1,5 +1,6 @@
 """Worker loop: repeatedly claim the next group of unfinished units, train it, write the results. Several workers can run on one GPU."""
 import gc
+import json
 import os
 import time
 
@@ -10,6 +11,19 @@ from ..experiment.units import group_id, group_units, unit_id
 from ..paths import experiment_dir
 from . import storage
 from .trainer import train_group
+
+
+def progress_writer(units):
+    """progress file of this worker (results/<experiment>/progress/<pid>.json), rewritten at every evaluation; read by monitoring tools."""
+    path = os.path.join(experiment_dir(units[0]["experiment"]), "progress", "%d.json" % os.getpid())
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    def write(ep, epochs, seconds, val, test):
+        rec = dict(pid=os.getpid(), group=group_id(units), units=[unit_id(u) for u in units], variant=units[0]["variant"], width=units[0]["width"],
+                   f=units[0]["f"], configs=[[u["init"], u["init2"]] for u in units], epoch=ep, epochs=epochs, seconds=seconds, val=val, test=test,
+                   time=time.time())
+        storage.write_atomic(path, json.dumps(rec).encode())
+    return write
 
 
 def run_worker(units, device, max_nets=720, max_cfg=4, log=print):
@@ -24,7 +38,7 @@ def run_worker(units, device, max_nets=720, max_cfg=4, log=print):
             # another worker claimed this group in between
             continue
         try:
-            outs = train_group(mine, device, log=log)
+            outs = train_group(mine, device, log=log, progress=progress_writer(mine))
         except Exception as ex:
             log("ERROR group %s %r" % (group_id(mine), ex))
             for u in mine:

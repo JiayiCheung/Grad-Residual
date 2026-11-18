@@ -7,7 +7,9 @@ shortcut_scale      Standard Residual with the raw shortcut (s = 1), the shortcu
 shuffled_direction  Grad Residual (c = 1) with the true g_hat and with g_hat shuffled across samples, against Regular
 norm_shortcut       plan 1A: the lr_budget winners (drop rule, 20000 epochs) of the four shortcut methods, retrained with the normalised shortcut on
                     the same seeds, so every network is paired with its raw-shortcut twin in lr_budget
-indep_grid          plan 1B: s and c both trainable on the normalised shortcut and g_hat (16 start pairs x 6 learning rates, widths 8 ... 64)
+indep_grid          plan 1B: s and c both trainable on the normalised shortcut and g_hat (16 start pairs x 6 learning rates, widths 8 ... 64);
+                    run at widths 8 and 16 only
+indep_w32           plan 1B at width 32 with 5 learning rates (0.5 dropped)
 
 Units of the plan-1 experiments carry save_weights: all weights are written at these epochs (one .pt per unit).
 """
@@ -134,5 +136,15 @@ def indep_grid(widths=(8, 16, 32, 64), fs=(1.0, 2.0), seed0=5000, S=30, epochs=2
     return _snap(out)
 
 
+def indep_w32(fs=(1.0, 2.0), seed0=5000, S=30, epochs=20000):
+    """indep_grid at width 32 without learning rate 0.5 (never within 5% of the best at widths 8 and 16); same seeds, so it continues
+    indep_grid, whose width-32 and width-64 units are not run."""
+    out = [u for u in indep_grid(widths=(32,), fs=fs, seed0=seed0, S=S, epochs=epochs)]
+    for u in out:
+        u["experiment"] = "indep_w32"
+        u["lrs"] = [lr for lr in u["lrs"] if lr != 0.5]
+    return out
+
+
 EXPERIMENTS = {"lr_budget": lr_budget, "shortcut_scale": shortcut_scale, "shuffled_direction": shuffled_direction,
-               "norm_shortcut": norm_shortcut, "indep_grid": indep_grid}
+               "norm_shortcut": norm_shortcut, "indep_grid": indep_grid, "indep_w32": indep_w32}
