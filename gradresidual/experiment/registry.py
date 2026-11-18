@@ -11,6 +11,7 @@ indep_grid          plan 1B: s and c both trainable on the normalised shortcut a
                     run at widths 8 and 16 only
 indep_w32           plan 1B at width 32 with 5 learning rates (0.5 dropped); stopped after 4 units
 indep_w32_5k        the same at 5000 epochs (what is run)
+indep_w64_5k        the same at width 64
 
 Units of the plan-1 experiments carry save_weights: all weights are written at these epochs (one .pt per unit).
 """
@@ -157,5 +158,16 @@ def indep_w32_5k():
     return out
 
 
+def indep_w64_5k():
+    """the same as indep_w32_5k at width 64 (5 learning rates, 5000 epochs, same seeds)."""
+    out = [u for u in indep_grid(widths=(64,), epochs=5000)]
+    for u in out:
+        u["experiment"] = "indep_w64_5k"
+        u["lrs"] = [lr for lr in u["lrs"] if lr != 0.5]
+        u["save_weights"] = [5000]
+    return out
+
+
 EXPERIMENTS = {"lr_budget": lr_budget, "shortcut_scale": shortcut_scale, "shuffled_direction": shuffled_direction,
-               "norm_shortcut": norm_shortcut, "indep_grid": indep_grid, "indep_w32": indep_w32, "indep_w32_5k": indep_w32_5k}
+               "norm_shortcut": norm_shortcut, "indep_grid": indep_grid, "indep_w32": indep_w32, "indep_w32_5k": indep_w32_5k,
+               "indep_w64_5k": indep_w64_5k}
