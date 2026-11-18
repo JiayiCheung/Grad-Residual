@@ -19,7 +19,7 @@ from ..training.storage import is_done, load_manifest, load_results
 
 BUDGETS = {"lr_budget": (5000, 10000, 20000), "shortcut_scale": (5000,), "shuffled_direction": (5000,),
            "norm_shortcut": (5000, 10000, 20000), "indep_grid": (5000, 10000, 20000),
-           "indep_w32": (5000, 10000, 20000)}
+           "indep_w32": (5000, 10000, 20000), "indep_w32_5k": (5000,)}
 
 
 def main():

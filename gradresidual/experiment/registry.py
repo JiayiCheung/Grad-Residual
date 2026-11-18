@@ -9,7 +9,8 @@ norm_shortcut       plan 1A: the lr_budget winners (drop rule, 20000 epochs) of 
                     the same seeds, so every network is paired with its raw-shortcut twin in lr_budget
 indep_grid          plan 1B: s and c both trainable on the normalised shortcut and g_hat (16 start pairs x 6 learning rates, widths 8 ... 64);
                     run at widths 8 and 16 only
-indep_w32           plan 1B at width 32 with 5 learning rates (0.5 dropped)
+indep_w32           plan 1B at width 32 with 5 learning rates (0.5 dropped); stopped after 4 units
+indep_w32_5k        the same at 5000 epochs (what is run)
 
 Units of the plan-1 experiments carry save_weights: all weights are written at these epochs (one .pt per unit).
 """
@@ -146,5 +147,15 @@ def indep_w32(fs=(1.0, 2.0), seed0=5000, S=30, epochs=20000):
     return out
 
 
+def indep_w32_5k():
+    """indep_w32 trained for 5000 epochs only (the ranking no longer changes between 5000 and 20000 epochs at widths 8 and 16); the
+    learning rate is constant, so these runs equal the first 5000 epochs of 20000-epoch runs."""
+    out = indep_w32(epochs=5000)
+    for u in out:
+        u["experiment"] = "indep_w32_5k"
+        u["save_weights"] = [5000]
+    return out
+
+
 EXPERIMENTS = {"lr_budget": lr_budget, "shortcut_scale": shortcut_scale, "shuffled_direction": shuffled_direction,
-               "norm_shortcut": norm_shortcut, "indep_grid": indep_grid, "indep_w32": indep_w32}
+               "norm_shortcut": norm_shortcut, "indep_grid": indep_grid, "indep_w32": indep_w32, "indep_w32_5k": indep_w32_5k}
